@@ -1,0 +1,63 @@
+import { FaHome, FaUser, FaPlus, FaTasks, FaUsers, FaChartBar } from 'react-icons/fa';
+
+export default function Sidebar() {
+  return (
+    <div className="w-64 h-screen bg-gray-800 text-white p-4">
+      <h1 className="text-2xl font-bold mb-6">Internship Management System</h1>
+      <ul>
+        <li className="mb-4 flex items-center"><FaHome className="mr-2"/> Dashboard</li>
+        <li className="mb-4 flex items-center"><FaUser className="mr-2"/> Manage Users</li>
+        <li className="mb-4 flex items-center"><FaPlus className="mr-2"/> Add Intern</li>
+        <li className="mb-4 flex items-center"><FaTasks className="mr-2"/> Allocate Projects</li>
+        <li className="mb-4 flex items-center"><FaUsers className="mr-2"/> Allocate Mentors</li>
+        <li className="mb-4 flex items-center"><FaChartBar className="mr-2"/> Project Submission Status</li>
+      </ul>
+    </div>
+  );
+}
+
+
+
+interface StatBoxProps {
+  title: string;
+  value: number;
+  icon: JSX.Element;
+}
+
+const StatBox = ({ title, value, icon }: StatBoxProps) => (
+  <div className="bg-white shadow-md rounded p-4 flex items-center gap-4">
+    {icon}
+    <div>
+      <p className="text-xl font-bold">{value}</p>
+      <p className="text-sm text-gray-600">{title}</p>
+    </div>
+  </div>
+);
+
+export default function Dashboard() {
+  return (
+    <div className="grid grid-cols-4 gap-4 p-4">
+      <StatBox title="Users" value={25} icon={<i className="fas fa-user" />} />
+      <StatBox title="Interns" value={40} icon={<i className="fas fa-users" />} />
+      <StatBox title="Submitted Projects" value={18} icon={<i className="fas fa-folder" />} />
+      <StatBox title="Assigned Mentors" value={15} icon={<i className="fas fa-user-tie" />} />
+    </div>
+  );
+}
+
+
+
+import Sidebar from './components/Sidebar';
+import Dashboard from './components/Dashboard';
+
+export default function App() {
+  return (
+    <div className="flex">
+      <Sidebar />
+      <div className="flex-1 bg-gray-100 min-h-screen p-6">
+        <Dashboard />
+        {/* Add <ProjectStatus /> and <AllocateMentor /> here */}
+      </div>
+    </div>
+  );
+}
