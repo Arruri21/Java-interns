@@ -68,3 +68,80 @@ export default function App() {
     </div>
   );
 }
+
+
+import { Table, Badge } from 'react-bootstrap';
+
+const submissions = [
+  { title: 'Data Analysis Tool', intern: 'John Smith', status: 'Approved' },
+  { title: 'Web Application', intern: 'Emily Johnson', status: 'Pending' },
+  { title: 'Machine Learning Model', intern: 'Michael Lee', status: 'Rejected' },
+  { title: 'Mobile App', intern: 'Sarah Brown', status: 'Approved' },
+  { title: 'Database System', intern: 'David Wilson', status: 'Pending' }
+];
+
+const getBadgeVariant = (status: string) => {
+  switch (status) {
+    case 'Approved': return 'success';
+    case 'Pending': return 'warning';
+    case 'Rejected': return 'danger';
+    default: return 'secondary';
+  }
+};
+
+export default function ProjectStatus() {
+  return (
+    <div className="mb-4">
+      <h5>Project Submission Status</h5>
+      <Table striped bordered hover>
+        <thead>
+          <tr>
+            <th>Project Title</th>
+            <th>Intern</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {submissions.map((s, i) => (
+            <tr key={i}>
+              <td>{s.title}</td>
+              <td>{s.intern}</td>
+              <td><Badge bg={getBadgeVariant(s.status)}>{s.status}</Badge></td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </div>
+  );
+}
+
+
+
+import { Form, Button } from 'react-bootstrap';
+
+export default function AllocateMentor() {
+  return (
+    <div>
+      <h5>Allocate Mentor</h5>
+      <Form>
+        <Form.Group className="mb-3">
+          <Form.Label>Project</Form.Label>
+          <Form.Select>
+            <option>Select project</option>
+            <option>Data Analysis Tool</option>
+            <option>Web Application</option>
+          </Form.Select>
+        </Form.Group>
+        <Form.Group className="mb-3">
+          <Form.Label>Mentor</Form.Label>
+          <Form.Select>
+            <option>Select mentor</option>
+            <option>Dr. Smith</option>
+            <option>Prof. John</option>
+          </Form.Select>
+        </Form.Group>
+        <Button variant="primary">Allocate</Button>
+      </Form>
+    </div>
+  );
+}
