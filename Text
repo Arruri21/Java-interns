@@ -1,47 +1,45 @@
-import { FaHome, FaUser, FaPlus, FaTasks, FaUsers, FaChartBar } from 'react-icons/fa';
+import { Nav } from 'react-bootstrap';
 
 export default function Sidebar() {
   return (
-    <div className="w-64 h-screen bg-gray-800 text-white p-4">
-      <h1 className="text-2xl font-bold mb-6">Internship Management System</h1>
-      <ul>
-        <li className="mb-4 flex items-center"><FaHome className="mr-2"/> Dashboard</li>
-        <li className="mb-4 flex items-center"><FaUser className="mr-2"/> Manage Users</li>
-        <li className="mb-4 flex items-center"><FaPlus className="mr-2"/> Add Intern</li>
-        <li className="mb-4 flex items-center"><FaTasks className="mr-2"/> Allocate Projects</li>
-        <li className="mb-4 flex items-center"><FaUsers className="mr-2"/> Allocate Mentors</li>
-        <li className="mb-4 flex items-center"><FaChartBar className="mr-2"/> Project Submission Status</li>
-      </ul>
+    <div className="bg-dark text-white p-3" style={{ height: '100vh', width: '250px' }}>
+      <h4>Internship Management System</h4>
+      <Nav className="flex-column mt-4">
+        <Nav.Link className="text-white">Dashboard</Nav.Link>
+        <Nav.Link className="text-white">Manage Users</Nav.Link>
+        <Nav.Link className="text-white">Add Intern</Nav.Link>
+        <Nav.Link className="text-white">Allocate Projects</Nav.Link>
+        <Nav.Link className="text-white">Allocate Mentors</Nav.Link>
+        <Nav.Link className="text-white">Project Submission Status</Nav.Link>
+      </Nav>
     </div>
   );
 }
 
 
+import { Card, Row, Col } from 'react-bootstrap';
 
-interface StatBoxProps {
-  title: string;
-  value: number;
-  icon: JSX.Element;
-}
-
-const StatBox = ({ title, value, icon }: StatBoxProps) => (
-  <div className="bg-white shadow-md rounded p-4 flex items-center gap-4">
-    {icon}
-    <div>
-      <p className="text-xl font-bold">{value}</p>
-      <p className="text-sm text-gray-600">{title}</p>
-    </div>
-  </div>
-);
+const data = [
+  { label: 'Users', value: 25 },
+  { label: 'Interns', value: 40 },
+  { label: 'Submitted Projects', value: 18 },
+  { label: 'Assigned Mentors', value: 15 }
+];
 
 export default function Dashboard() {
   return (
-    <div className="grid grid-cols-4 gap-4 p-4">
-      <StatBox title="Users" value={25} icon={<i className="fas fa-user" />} />
-      <StatBox title="Interns" value={40} icon={<i className="fas fa-users" />} />
-      <StatBox title="Submitted Projects" value={18} icon={<i className="fas fa-folder" />} />
-      <StatBox title="Assigned Mentors" value={15} icon={<i className="fas fa-user-tie" />} />
-    </div>
+    <Row className="mb-4">
+      {data.map((item, idx) => (
+        <Col key={idx} md={3}>
+          <Card>
+            <Card.Body>
+              <Card.Title>{item.value}</Card.Title>
+              <Card.Text>{item.label}</Card.Text>
+            </Card.Body>
+          </Card>
+        </Col>
+      ))}
+    </Row>
   );
 }
 
@@ -49,14 +47,23 @@ export default function Dashboard() {
 
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
+import ProjectStatus from './components/ProjectStatus';
+import AllocateMentor from './components/AllocateMentor';
 
 export default function App() {
   return (
-    <div className="flex">
+    <div className="d-flex">
       <Sidebar />
-      <div className="flex-1 bg-gray-100 min-h-screen p-6">
+      <div className="flex-grow-1 p-4 bg-light">
         <Dashboard />
-        {/* Add <ProjectStatus /> and <AllocateMentor /> here */}
+        <div className="d-flex gap-4">
+          <div className="w-75">
+            <ProjectStatus />
+          </div>
+          <div className="w-25">
+            <AllocateMentor />
+          </div>
+        </div>
       </div>
     </div>
   );
