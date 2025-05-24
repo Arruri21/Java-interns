@@ -1,0 +1,694 @@
+import React, { FC, useState, useEffect } from "react";
+import { PeopleFill, PencilFill, TrashFill, PlusCircleFill } from "react-bootstrap-icons";
+import Modal from 'react-bootstrap/Modal';
+import Tab from 'react-bootstrap/Tab';
+import Tabs from 'react-bootstrap/Tabs';
+import Form from 'react-bootstrap/Form';
+import Button from 'react-bootstrap/Button';
+import Spinner from 'react-bootstrap/Spinner';
+import Toast from 'react-bootstrap/Toast';
+import Pagination from 'react-bootstrap/Pagination';
+
+interface User {
+  userId: number;
+  userName: string;
+  email: string;
+  yearOfJoining: number;
+  availableTime: string;
+  status: string;
+  contactNo: string;
+  noOfProjectsAssigned: number;
+  track: {
+    trackId: number;
+    trackName: string;
+  };
+}
+
+interface Role {
+  roleId: number;
+  roleName: string;
+}
+
+interface UserWithRoles extends User {
+  roles: Role[];
+}
+
+interface TrackOption {
+  trackId: number;
+  trackName: string;
+}
+
+// Constants
+const hardcodedRoles: Role[] = [
+  { roleId: 1, roleName: "approver1" },
+  { roleId: 2, roleName: "approver2" },
+  { roleId: 3, roleName: "user" },
+];
+
+const trackOptions: TrackOption[] = [
+  { trackId: 101, trackName: "Java React" },
+  { trackId: 102, trackName: "Microsoft" },
+  { trackId: 103, trackName: ".Net Angular" },
+  { trackId: 104, trackName: "Open Source" }
+];
+
+const availableTimeOptions = [
+  "Mon-Fri 2PM-4PM",
+  "Mon-Fri 9AM-5PM",
+  "Weekends Only",
+  "Flexible Hours",
+  "Full-Time"
+];
+
+const ManageUsers: FC = () => {
+  // State management
+  const [users, setUsers] = useState<UserWithRoles[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>('update');
+  const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
+  const [allRoles] = useState<Role[]>(hardcodedRoles);
+  const [newUserRole, setNewUserRole] = useState<number>(() => {
+    const defaultRole = hardcodedRoles.find(r => r.roleName.toLowerCase() === "approver1");
+    return defaultRole ? defaultRole.roleId : hardcodedRoles[0].roleId;
+  });
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+  const [showAddUserModal, setShowAddUserModal] = useState<boolean>(false);
+  const [newUser, setNewUser] = useState<any>({
+    userName: '',
+    email: '',
+    yearOfJoining: new Date().getFullYear(),
+    availableTime: 'Mon-Fri 2PM-4PM',
+    status: 'Active',
+    contactNo: '',
+    noOfProjectsAssigned: 0,
+    trackDTO: {
+      trackId: 101,
+      trackName: "Java React"
+    }
+  });
+  const [toastShow, setToastShow] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>('');
+  const [toastVariant, setToastVariant] = useState<'success' | 'danger'>('success');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  type FormControlElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const rowsPerPage = 10;
+
+  // Calculate pagination data
+  const totalPages = Math.ceil(users.length / rowsPerPage);
+  const indexOfLastRow = currentPage * rowsPerPage;
+  const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+  const currentRows = users.slice(indexOfFirstRow, indexOfLastRow);
+
+  // Fetch users data
+  useEffect(() => {
+    const fetchUsersAndRoles = async () => {
+      try {
+        setLoading(true);
+        const usersResponse = await fetch('http://localhost:8000/api/user/get-all-users');
+        if (!usersResponse.ok) throw new Error('Failed to fetch users');
+        const usersData: User[] = await usersResponse.json();
+
+        const usersWithRoles = await Promise.all(
+          usersData.map(async (user) => {
+            const rolesResponse = await fetch(`http://localhost:8000/api/role/role-name/${user.userId}`);
+            if (!rolesResponse.ok) throw new Error(`Failed to fetch roles for user ${user.userId}`);
+            const rolesData: Role[] = await rolesResponse.json();
+            return { ...user, roles: rolesData };
+          })
+        );
+
+        setUsers(usersWithRoles);
+        setLoading(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        setLoading(false);
+      }
+    };
+
+    fetchUsersAndRoles();
+  }, []);
+
+  // Refresh user roles
+  const refreshUserRoles = async (userId: number) => {
+    const updatedResponse = await fetch(`http://localhost:8000/api/role/role-name/${userId}`);
+    const updatedRoles: Role[] = await updatedResponse.json();
+    setUsers(users.map(user =>
+      user.userId === userId ? { ...user, roles: updatedRoles } : user
+    ));
+  };
+
+  // Form validation
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    let isValid = true;
+
+    if (!newUser.userName.trim()) {
+      errors.userName = 'Username is required';
+      isValid = false;
+    } else if (newUser.userName.length < 6) {
+      errors.userName = 'Username must be at least 6 characters';
+      isValid = false;
+    }
+
+    if (!newUser.email.trim()) {
+      errors.email = 'Email is required';
+      isValid = false;
+    } else if (!newUser.email.endsWith('@infosys.com')) {
+      errors.email = 'Email must end with @infosys.com';
+      isValid = false;
+    }
+
+    if (!newUser.yearOfJoining) {
+      errors.yearOfJoining = 'Year of joining is required';
+      isValid = false;
+    }
+
+    if (!newUser.contactNo.trim()) {
+      errors.contactNo = 'Contact number is required';
+      isValid = false;
+    } else if (!/^\d{10}$/.test(newUser.contactNo)) {
+      errors.contactNo = 'Contact number must be 10 digits';
+      isValid = false;
+    }
+
+    if (newUser.noOfProjectsAssigned < 0) {
+      errors.noOfProjectsAssigned = 'Cannot be negative';
+      isValid = false;
+    }
+
+    setFormErrors(errors);
+    return isValid;
+  };
+
+  // Event handlers
+  const handleEditClick = (user: UserWithRoles) => {
+    setSelectedUser(user);
+    setSelectedRoleId(null);
+    setActiveTab('update');
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedUser(null);
+    setSelectedRoleId(null);
+  };
+
+  const handleAddRole = async () => {
+    if (!selectedUser || !selectedRoleId) return;
+
+    try {
+      const response = await fetch('http://localhost:8000/api/role/add-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userDTO: { userId: selectedUser.userId },
+          roleDTO: { roleId: selectedRoleId }
+        }),
+      });
+
+      const result = await response.text();
+      if (!response.ok) throw new Error(result || 'Failed to add role');
+
+      await refreshUserRoles(selectedUser.userId);
+      setToastMessage('Role added successfully!');
+      setToastVariant('success');
+      setToastShow(true);
+      handleCloseModal();
+    } catch (err) {
+      setToastMessage(err instanceof Error ? err.message : 'Failed to add role');
+      setToastVariant('danger');
+      setToastShow(true);
+    }
+  };
+
+  const handleDeleteRole = async () => {
+    if (!selectedUser || !selectedRoleId) return;
+
+    try {
+      const response = await fetch('http://localhost:8000/api/role/delete-role', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userDTO: { userId: selectedUser.userId },
+          roleDTO: { roleId: selectedRoleId }
+        }),
+      });
+
+      const result = await response.text();
+      if (!response.ok) throw new Error(result || 'Failed to delete role');
+
+      await refreshUserRoles(selectedUser.userId);
+      setToastMessage('Role deleted successfully!');
+      setToastVariant('success');
+      setToastShow(true);
+      handleCloseModal();
+    } catch (err) {
+      setToastMessage(err instanceof Error ? err.message : 'Failed to delete role');
+      setToastVariant('danger');
+      setToastShow(true);
+    }
+  };
+
+  const handleAddNewUser = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:8000/api/role/add-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userDTO: {
+            ...newUser,
+            trackDTO: {
+              trackId: newUser.trackDTO.trackId
+            }
+          },
+          roleDTO: { roleId: newUserRole }
+        }),
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+
+      // Refresh users list
+      const usersResponse = await fetch('http://localhost:8000/api/user/get-all-users');
+      const usersData: User[] = await usersResponse.json();
+
+      const usersWithRoles = await Promise.all(
+        usersData.map(async (user) => {
+          const rolesResponse = await fetch(`http://localhost:8000/api/role/role-name/${user.userId}`);
+          const rolesData: Role[] = await rolesResponse.json();
+          return { ...user, roles: rolesData };
+        })
+      );
+
+      setUsers(usersWithRoles);
+      setShowAddUserModal(false);
+      setNewUser({
+        userName: '',
+        email: '',
+        yearOfJoining: new Date().getFullYear(),
+        availableTime: 'Mon-Fri 2PM-4PM',
+        status: 'Active',
+        contactNo: '',
+        noOfProjectsAssigned: 0,
+        trackDTO: {
+          trackId: 101,
+          trackName: "Java React"
+        }
+      });
+      setFormErrors({});
+      setToastMessage('User added successfully!');
+      setToastVariant('success');
+      setToastShow(true);
+      setCurrentPage(1);
+    } catch (err) {
+      setToastMessage(err instanceof Error ? err.message : 'Failed to add user');
+      setToastVariant('danger');
+      setToastShow(true);
+    }
+  };
+
+  const handleNewUserChange = (
+    e: React.ChangeEvent<FormControlElement>
+  ) => {
+    const { name, value } = e.target;
+    if (name === "trackName") {
+      const selectedTrack = trackOptions.find(track => track.trackName === value);
+      if (selectedTrack) {
+        setNewUser({
+          ...newUser,
+          trackDTO: {
+            trackId: selectedTrack.trackId,
+            trackName: selectedTrack.trackName
+          }
+        });
+      }
+    } 
+    else if (name.includes(".")) {
+      const [parent, child] = name.split(".");
+      setNewUser({
+        ...newUser,
+        [parent]: {
+          ...newUser[parent],
+          [child]: value
+        }
+      });
+    } else {
+      setNewUser({
+        ...newUser,
+        [name]: value
+      });
+    }
+  };
+
+  // Pagination component
+  const renderPagination = () => {
+    let items = [];
+    for (let number = 1; number <= totalPages; number++) {
+      items.push(
+        <Pagination.Item
+          key={number}
+          active={number === currentPage}
+          onClick={() => paginate(number)}
+        >
+          {number}
+        </Pagination.Item>
+      );
+    }
+
+    return (
+      <Pagination className="justify-content-center mt-3">
+        <Pagination.Prev
+          onClick={() => paginate(Math.max(1, currentPage - 1))}
+          disabled={currentPage === 1}
+        />
+        {items}
+        <Pagination.Next
+          onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage === totalPages}
+        />
+      </Pagination>
+    );
+  };
+
+  return (
+    <>
+      <div className="container-fluid fixed-top" style={{ marginLeft: '16rem', paddingTop: '2rem', width: "1200px",overflowY: "auto", height: "100vh" }}>
+        <h2 className="h5 mb-4 text-black">
+          <PeopleFill className="me-2" />
+          User Roles & Permissions
+        </h2>
+
+        {error && (
+          <div className="alert alert-danger" role="alert">
+            {error}
+          </div>
+        )}
+
+        <div className="card shadow-sm mb-4">
+          <div className="card-body">
+            {loading ? (
+              <div className="text-center py-4">
+                <Spinner animation="border" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </Spinner>
+              </div>
+            ) : (
+              <>
+                <div className="table-responsive">
+                  <table className="table table-hover">
+                    <thead className="table-light">
+                      <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Current Roles</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentRows.map((user) => (
+                        <tr key={user.userId}>
+                          <td>{user.userName}</td>
+                          <td>{user.email}</td>
+                          <td>
+                            {user.roles.length > 0 ? (
+                              user.roles.map(role => (
+                                <span key={role.roleId} className="badge bg-primary me-1">
+                                  {role.roleName}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-muted">No roles assigned</span>
+                            )}
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-outline-primary me-2"
+                              onClick={() => handleEditClick(user)}
+                            >
+                              <PencilFill className="me-1" />
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {renderPagination()}
+
+                <button
+                  className="btn btn-primary mt-3"
+                  onClick={() => setShowAddUserModal(true)}
+                >
+                  <PlusCircleFill className="me-2" />
+                  Add New User
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Edit User Roles Modal */}
+        <Modal show={showModal} onHide={handleCloseModal} backdrop="static" keyboard={false} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>Edit Roles for {selectedUser?.userName}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Tabs
+              id="edit-role-tabs"
+              activeKey={activeTab}
+              onSelect={(k) => setActiveTab(k || 'update')}
+              className="mb-3"
+            >
+              <Tab eventKey="update" title="Add Role">
+                <Form.Group className="mb-3">
+                  <Form.Label>Select Role</Form.Label>
+                  <Form.Select
+                    value={selectedRoleId ?? ''}
+                    onChange={(e) => setSelectedRoleId(Number(e.target.value))}
+                  >
+                    <option value="">-- Select a Role --</option>
+                    {allRoles
+                      .filter(
+                        role =>
+                          selectedUser &&
+                          !selectedUser.roles.some(userRole => userRole.roleId === role.roleId)
+                      )
+                      .map(role => (
+                        <option key={role.roleId} value={role.roleId}>
+                          {role.roleName}
+                        </option>
+                      ))}
+                  </Form.Select>
+                </Form.Group>
+                <Button
+                  variant="primary"
+                  disabled={!selectedRoleId}
+                  onClick={handleAddRole}
+                >
+                  Add Role
+                </Button>
+              </Tab>
+
+              <Tab eventKey="delete" title="Remove Role">
+                {selectedUser?.roles.length ? (
+                  <Form.Group className="mb-3">
+                    <Form.Label>Select Role to Remove</Form.Label>
+                    <Form.Select
+                      value={selectedRoleId ?? ''}
+                      onChange={(e) => setSelectedRoleId(Number(e.target.value))}
+                    >
+                      <option value="">-- Select a Role --</option>
+                      {selectedUser.roles.map(role => (
+                        <option key={role.roleId} value={role.roleId}>{role.roleName}</option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                ) : (
+                  <p>No roles assigned to this user.</p>
+                )}
+                <Button
+                  variant="danger"
+                  disabled={!selectedRoleId}
+                  onClick={handleDeleteRole}
+                >
+                  Remove Role
+                </Button>
+              </Tab>
+            </Tabs>
+          </Modal.Body>
+        </Modal>
+
+        {/* Add New User Modal */}
+        <Modal show={showAddUserModal} onHide={() => setShowAddUserModal(false)} backdrop="static" keyboard={false} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>Add New User</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form>
+              <Form.Group className="mb-3" controlId="newUserName">
+                <Form.Label>User Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="userName"
+                  value={newUser.userName}
+                  onChange={handleNewUserChange}
+                  isInvalid={!!formErrors.userName}
+                  placeholder="Enter at least 6 characters"
+                />
+                <Form.Control.Feedback type="invalid">
+                  {formErrors.userName}
+                </Form.Control.Feedback>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="newUserEmail">
+                <Form.Label>Email</Form.Label>
+                <Form.Control
+                  type="email"
+                  name="email"
+                  value={newUser.email}
+                  onChange={handleNewUserChange}
+                  isInvalid={!!formErrors.email}
+                  placeholder="Must end with @infosys.com"
+                />
+                <Form.Control.Feedback type="invalid">
+                  {formErrors.email}
+                </Form.Control.Feedback>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="newUserYearOfJoining">
+                <Form.Label>Year of Joining</Form.Label>
+                <Form.Control
+                  type="number"
+                  name="yearOfJoining"
+                  value={newUser.yearOfJoining}
+                  onChange={handleNewUserChange}
+                  isInvalid={!!formErrors.yearOfJoining}
+                />
+                <Form.Control.Feedback type="invalid">
+                  {formErrors.yearOfJoining}
+                </Form.Control.Feedback>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="newUserAvailableTime">
+                <Form.Label>Available Time</Form.Label>
+                <Form.Select
+                  name="availableTime"
+                  value={newUser.availableTime}
+                  onChange={handleNewUserChange}
+                >
+                  {availableTimeOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="newUserStatus">
+                <Form.Label>Status</Form.Label>
+                <Form.Select
+                  name="status"
+                  value={newUser.status}
+                  onChange={handleNewUserChange}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </Form.Select>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="newUserContactNo">
+                <Form.Label>Contact Number</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="contactNo"
+                  value={newUser.contactNo}
+                  onChange={handleNewUserChange}
+                  isInvalid={!!formErrors.contactNo}
+                  placeholder="10 digits required"
+                />
+                <Form.Control.Feedback type="invalid">
+                  {formErrors.contactNo}
+                </Form.Control.Feedback>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="newUserNoOfProjectsAssigned">
+                <Form.Label>No. of Projects Assigned</Form.Label>
+                <Form.Control
+                  type="number"
+                  name="noOfProjectsAssigned"
+                  value={newUser.noOfProjectsAssigned}
+                  onChange={handleNewUserChange}
+                  isInvalid={!!formErrors.noOfProjectsAssigned}
+                  min="0"
+                />
+                <Form.Control.Feedback type="invalid">
+                  {formErrors.noOfProjectsAssigned}
+                </Form.Control.Feedback>
+              </Form.Group>
+
+              <Form.Group className="mb-3" controlId="newUserTrack">
+                <Form.Label>Track</Form.Label>
+                <Form.Select
+                  name="trackName"
+                  value={newUser.trackDTO.trackName}
+                  onChange={handleNewUserChange}
+                >
+                  {trackOptions.map(track => (
+                    <option key={track.trackId} value={track.trackName}>
+                      {track.trackName}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Select Role</Form.Label>
+                <Form.Select
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(Number(e.target.value))}
+                >
+                  {allRoles.map(role => (
+                    <option key={role.roleId} value={role.roleId}>
+                      {role.roleName}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+
+              <Button variant="success" onClick={handleAddNewUser}>Add User</Button>
+            </Form>
+          </Modal.Body>
+        </Modal>
+
+        {/* Toast notification */}
+        <Toast
+          onClose={() => setToastShow(false)}
+          show={toastShow}
+          delay={3000}
+          autohide
+          bg={toastVariant}
+          className="position-fixed bottom-0 end-0 m-3"
+        >
+          <Toast.Body className="text-white">{toastMessage}</Toast.Body>
+        </Toast>
+      </div>
+    </>
+  );
+};
+
+export default ManageUsers;
