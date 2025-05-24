@@ -1,0 +1,150 @@
+import { Table, Badge, Pagination } from 'react-bootstrap';
+import { useEffect, useState } from 'react';
+
+interface ProjectOwner {
+  userId: number;
+  userName: string;
+  email: string;
+  yearOfJoining: number;
+  availableTime: string;
+  status: string;
+  contactNo: string;
+  track: {
+    trackId: number;
+    trackName: string;
+  };
+}
+
+interface Track {
+  trackId: number;
+  trackName: string;
+}
+
+interface ProjectIdea {
+  projectIdeaId: number;
+  projectTitle: string;
+  description: string;
+  documentPath: string | null;
+  projectOwnerId: ProjectOwner;
+  status: string;
+  submissionDate: string;
+  approval1Date: string | null;
+  approval2Date: string | null;
+  assigned: boolean;
+  remarks: string | null;
+  track: Track;
+}
+
+const getBadgeVariant = (status: string) => {
+  switch (status) {
+    case 'APPROVED_BY_1': return 'success';
+    case 'APPROVED_BY_2': return 'success';
+    case 'PENDING': return 'warning';
+    case 'REJECTED_BY_2': return 'danger';
+    case 'REJECTED_BY_1': return 'danger';
+    default: return 'secondary';
+  }
+};
+
+export default function ProjectStatus() {
+  const [projects, setProjects] = useState<ProjectIdea[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const projectsPerPage = 10;
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/api/projectidea/all-projects");
+        if (!response.ok) {
+          throw new Error('Failed to fetch projects');
+        }
+        const data = await response.json();
+        setProjects(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  // Get current projects
+  const indexOfLastProject = currentPage * projectsPerPage;
+  const indexOfFirstProject = indexOfLastProject - projectsPerPage;
+  const currentProjects = projects.slice(indexOfFirstProject, indexOfLastProject);
+
+  // Change page
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+
+  // Calculate total pages
+  const totalPages = Math.ceil(projects.length / projectsPerPage);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+
+  return (
+    <div className="mb-4 justify-content-center mb-4 fixed-top" style={{ marginLeft: "25rem", marginTop: "5rem" }}>
+      <h5 className='text-black'>Project Submission Status</h5>
+      <Table striped bordered hover style={{ width: "700px" }}>
+        <thead>
+          <tr>
+            <th>Project Title</th>
+            <th>Mentor</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {currentProjects.map((project) => (
+            <tr key={project.projectIdeaId}>
+              <td>{project.projectTitle}</td>
+              <td>{project.projectOwnerId.userName}</td>
+              <td>
+                <Badge bg={getBadgeVariant(project.status)}>
+                  {project.status}
+                </Badge>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+      
+      {/* Pagination */}
+      <div style={{ width: "700px" }}>
+        <Pagination className="justify-content-center">
+          <Pagination.First 
+            onClick={() => paginate(1)} 
+            disabled={currentPage === 1} 
+          />
+          <Pagination.Prev 
+            onClick={() => paginate(currentPage - 1)} 
+            disabled={currentPage === 1} 
+          />
+          
+          {/* Show page numbers */}
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(number => (
+            <Pagination.Item
+              key={number}
+              active={number === currentPage}
+              onClick={() => paginate(number)}
+            >
+              {number}
+            </Pagination.Item>
+          ))}
+          
+          <Pagination.Next 
+            onClick={() => paginate(currentPage + 1)} 
+            disabled={currentPage === totalPages} 
+          />
+          <Pagination.Last 
+            onClick={() => paginate(totalPages)} 
+            disabled={currentPage === totalPages} 
+          />
+        </Pagination>
+      </div>
+    </div>
+  );
+}
