@@ -1,0 +1,246 @@
+import React, { useEffect, useState } from 'react';
+import { 
+  BellFill,
+  CheckCircleFill,
+  ClockFill,
+  PersonFill,
+  EnvelopeFill,
+  XCircleFill
+} from 'react-bootstrap-icons';
+import moment from 'moment';
+
+interface TrackDTO {
+  trackId: number | null;
+  trackName: string | null;
+}
+
+interface UserDTO {
+  userId: number;
+  userName: string | null;
+  email: string | null;
+  trackDTO: TrackDTO | null;
+  yearOfJoining: number;
+  availableTime: string | null;
+  status: string | null;
+  contactNo: string | null;
+}
+
+interface Notification {
+  notificationId: number;
+  userdto: UserDTO;
+  senderId: number | null;
+  senderName: string | null;
+  senderType: string | null;
+  message: string;
+  seen: boolean;
+  createdAt: string;
+}
+
+const MentorNotifications: React.FC = () => {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [fadingOut, setFadingOut] = useState<number[]>([]);
+  const [highlighted, setHighlighted] = useState<number[]>([]);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/api/employeenotification/user/1");
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        // Sort notifications by createdAt in descending order (newest first)
+        const sortedData = data.sort((a: Notification, b: Notification) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setNotifications(sortedData);
+      } catch (err) {
+        console.error("Error fetching notifications:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
+
+  // const markAsRead = async (notificationId: number) => {
+  //   try {
+  //     const response = await fetch(`http://localhost:8000/api/notification/markAsRead/${notificationId}`, {
+  //       method: 'PUT'
+  //     });
+      
+  //     if (response.ok) {
+  //       setNotifications(notifications.map(notification => 
+  //         notification.notificationId === notificationId 
+  //           ? { ...notification, seen: true } 
+  //           : notification
+  //       ));
+  //     }
+  //   } catch (err) {
+  //     console.error("Error marking notification as read:", err);
+  //   }
+  // };
+
+  // const deleteNotification = async (notificationId: number) => {
+  //   try {
+  //     const response = await fetch(`http://localhost:8000/api/notification/${notificationId}`, {
+  //       method: 'DELETE'
+  //     });
+      
+  //     if (response.ok) {
+  //       setNotifications(notifications.filter(
+  //         notification => notification.notificationId !== notificationId
+  //       ));
+  //     }
+  //   } catch (err) {
+  //     console.error("Error deleting notification:", err);
+  //   }
+  // };
+
+
+  const markAsRead = async (notificationId: number) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/notification/markAsRead/${notificationId}`, {
+        method: 'PUT'
+      });
+  
+      if (response.ok) {
+        setHighlighted(prev => [...prev, notificationId]);
+        setTimeout(() => {
+          setNotifications(notifications.map(notification =>
+            notification.notificationId === notificationId
+              ? { ...notification, seen: true }
+              : notification
+          ));
+          setHighlighted(prev => prev.filter(id => id !== notificationId));
+        }, 400); // match CSS animation duration
+      }
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+    }
+  };
+  
+  const deleteNotification = async (notificationId: number) => {
+    setFadingOut(prev => [...prev, notificationId]);
+  
+    setTimeout(async () => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/notification/${notificationId}`, {
+          method: 'DELETE'
+        });
+  
+        if (response.ok) {
+          setNotifications(notifications.filter(
+            notification => notification.notificationId !== notificationId
+          ));
+          setFadingOut(prev => prev.filter(id => id !== notificationId));
+        }
+      } catch (err) {
+        console.error("Error deleting notification:", err);
+      }
+    }, 300); // match CSS transition duration
+  };
+  
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: '200px' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="alert alert-danger">
+        <XCircleFill className="me-2" />
+        Error loading notifications: {error}
+      </div>
+    );
+  }
+
+  if (notifications.length === 0) {
+    return (
+      <div className="text-center py-5">
+        <BellFill size={48} className="text-muted mb-3" />
+        <h5 className="text-muted">No notifications yet</h5>
+        <p className="text-muted">You'll see notifications here when you have them</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container py-4">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h3 className="h4 mb-0">
+          <BellFill className="text-primary me-2" />
+          Notifications
+        </h3>
+        <small className="text-muted">
+          {notifications.filter(n => !n.seen).length} unread
+        </small>
+      </div>
+
+      <div className="list-group">
+        {notifications.map((notification) => (
+          <div 
+            key={notification.notificationId}
+            className={`list-group-item list-group-item-action ${!notification.seen ? 'bg-light' : ''}`}
+            style={{ borderLeft: !notification.seen ? '4px solid #0d6efd' : 'none' }}
+          >
+            <div className="d-flex justify-content-between align-items-start">
+              <div className="me-3">
+                <div className="d-flex align-items-center mb-2">
+                  {!notification.seen && (
+                    <span className="badge bg-primary me-2">New</span>
+                  )}
+                  <h6 className="mb-0">{notification.message}</h6>
+                </div>
+                
+                <div className="d-flex flex-wrap gap-3 text-muted small">
+                  <div className="d-flex align-items-center">
+                    <ClockFill className="me-1" />
+                    <span>{moment(notification.createdAt).fromNow()}</span>
+                  </div>
+                  {notification.senderId && (
+                    <div className="d-flex align-items-center">
+                      <PersonFill className="me-1" />
+                      <span>From: {notification.senderName}({notification.senderType}-{notification.senderId})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="d-flex gap-2">
+                {!notification.seen && (
+                  <button 
+                    onClick={() => markAsRead(notification.notificationId)}
+                    className="btn btn-sm btn-outline-success"
+                    title="Mark as read"
+                  >
+                    <CheckCircleFill size={14} />
+                  </button>
+                )}
+                <button 
+                  onClick={() => deleteNotification(notification.notificationId)}
+                  className="btn btn-sm btn-outline-danger"
+                  title="Delete"
+                >
+                  <XCircleFill size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default MentorNotifications;
