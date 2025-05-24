@@ -1,0 +1,84 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  PeopleFill, 
+  PersonPlus, 
+  People, 
+  PersonCheck, 
+  ClipboardCheck,
+  ArrowRightCircle
+} from 'react-bootstrap-icons';
+import './Dashboard.css'; // Custom CSS file
+
+const Dashboard = () => {
+  const navigate = useNavigate();
+
+  const features = [
+    {
+      title: "Manage Users",
+      description: "View, edit, and manage all user accounts",
+      icon: <PeopleFill size={24} />,
+      path: "/manage-users",
+      color: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+    },
+    {
+      title: "Add Intern",
+      description: "Register new interns to the system",
+      icon: <PersonPlus size={24} />,
+      path: "/add-intern",
+      color: "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)"
+    },
+    {
+      title: "Team View",
+      description: "See all teams and their members",
+      icon: <People size={24} />,
+      path: "/team-view",
+      color: "linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)"
+    },
+    {
+      title: "Allocate Mentors",
+      description: "Assign mentors to interns and projects",
+      icon: <PersonCheck size={24} />,
+      path: "/allocate-mentors",
+      color: "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)"
+    },
+    {
+      title: "Project Submissions",
+      description: "Track project submission status",
+      icon: <ClipboardCheck size={24} />,
+      path: "/project-status",
+      color: "linear-gradient(135deg, #ffc3a0 0%, #ffafbd 100%)"
+    }
+  ];
+
+  return (
+    <div className="dashboard-container">
+      <header className="dashboard-header">
+        <h1>Internship Management Dashboard</h1>
+        <p>Manage all aspects of your internship program</p>
+      </header>
+
+      <div className="features-grid">
+        {features.map((feature, index) => (
+          <div 
+            key={index}
+            className="feature-card"
+            style={{ background: feature.color }}
+            onClick={() => navigate(feature.path)}
+          >
+            <div className="card-icon">{feature.icon}</div>
+            <div className="card-content">
+              <h3>{feature.title}</h3>
+              <p>{feature.description}</p>
+            </div>
+            <div className="card-arrow">
+              <ArrowRightCircle size={20} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
