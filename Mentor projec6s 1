@@ -1,0 +1,510 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import {
+  Clock,
+  Download,
+  ChatLeftText,
+  CheckCircle,
+  ExclamationTriangle,
+  ClockHistory,
+  FileBarGraph,
+  ChevronDown,
+  ChevronUp,
+  BellFill,
+  ArrowDownCircle,
+  FileEarmarkText
+} from 'react-bootstrap-icons';
+import {
+  Card,
+  ProgressBar,
+  Button,
+  Form,
+  Badge,
+  Spinner,
+  Alert,
+  Collapse,
+  Toast,
+  ToastContainer
+} from 'react-bootstrap';
+import './MentorProjects.css'; // We'll create this CSS file for custom animations
+
+interface UserDTO {
+  userId: number;
+  userName: string | null;
+  email: string | null;
+  trackDTO: any | null;
+  year0fJoining: number;
+  availableTime: string | null;
+  status: string | null;
+  contactNo: string | null;
+}
+
+interface ProjectIdeaDTO {
+  projectIdeaId: number;
+  projectTitle: string;
+  description: string;
+  documentPath: string | null;
+  projectOwnerId: UserDTO;
+  submissionDate: string;
+  status: string;
+  approval1Date: string | null;
+  approval2Date: string | null;
+  remarks: string | null;
+  TrackDTO: any | null;
+  currentStage?: number;
+}
+
+interface FeedbackData {
+  feedbackText: string;
+  date: string;
+  projectIdeaId: number;
+}
+
+const api = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  timeout: 5000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+const MentorProjects = () => {
+  const [projects, setProjects] = useState<ProjectIdeaDTO[]>([]);
+  const [activeFeedbackId, setActiveFeedbackId] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<{ [key: number]: string }>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedSprints, setSelectedSprints] = useState<{ [key: number]: number }>({});
+  const [isSavingProgress, setIsSavingProgress] = useState<{ [key: number]: boolean }>({});
+  const [expandedProjects, setExpandedProjects] = useState<{ [key: number]: boolean }>({});
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  const [sprintSuccess, setSprintSuccess] = useState<string | null>(null);
+  const [feedbackValidationErrors, setFeedbackValidationErrors] = useState<{ [key: number]: string }>({});
+  const [showToast, setShowToast] = useState(false);
+
+  const mentorId = 2;
+
+  const sprints = [
+    { id: 1, name: "Sprint 0" },
+    { id: 2, name: "Sprint 1" },
+    { id: 3, name: "Sprint 2" }
+  ];
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await api.get(`/user/mentorprojects/${mentorId}`);
+        let projectsData: ProjectIdeaDTO[] = [];
+
+        if (Array.isArray(response.data)) {
+          projectsData = response.data;
+        } else if (response.data) {
+          projectsData = [response.data];
+        } else {
+          throw new Error('No data received from API');
+        }
+
+        const initialStates = projectsData.reduce((acc, project) => {
+          acc.expanded[project.projectIdeaId] = false;
+          acc.sprints[project.projectIdeaId] = project.currentStage || 0;
+          acc.feedback[project.projectIdeaId] = '';
+          return acc;
+        }, {
+          expanded: {} as { [key: number]: boolean },
+          sprints: {} as { [key: number]: number },
+          feedback: {} as { [key: number]: string }
+        });
+
+        setExpandedProjects(initialStates.expanded);
+        setSelectedSprints(initialStates.sprints);
+        setFeedback(initialStates.feedback);
+        setProjects(projectsData);
+      } catch (err) {
+        handleApiError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, [mentorId]);
+
+  const handleApiError = (error: unknown) => {
+    let errorMessage = 'Failed to load projects';
+
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        errorMessage = `Server error: ${error.response.status} - ${error.response.data?.message || 'No additional info'}`;
+      } else if (error.request) {
+        errorMessage = 'No response received from server';
+      } else {
+        errorMessage = `Request error: ${error.message}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    console.error('API Error:', error);
+    setError(errorMessage);
+  };
+
+  const handleSubmitFeedback = async (projectId: number) => {
+    try {
+      setError(null);
+      const currentFeedback = feedback[projectId] || '';
+
+      if (currentFeedback.length < 10) {
+        setFeedbackValidationErrors(prev => ({
+          ...prev,
+          [projectId]: 'Feedback must be at least 10 characters long.'
+        }));
+        return;
+      }
+
+      // Clear validation error if valid
+      setFeedbackValidationErrors(prev => ({
+        ...prev,
+        [projectId]: ''
+      }));
+
+      const feedbackData: FeedbackData = {
+        feedbackText: currentFeedback,
+        date: new Date().toISOString().split('T')[0],
+        projectIdeaId: projectId
+      };
+
+      await api.post(`/feedback/by-mentor/${projectId}`, feedbackData);
+
+      setProjects(projects.map(p =>
+        p.projectIdeaId === projectId ? { ...p, remarks: currentFeedback } : p
+      ));
+
+      setActiveFeedbackId(null);
+      setFeedbackSuccess('Your feedback has been submitted successfully.');
+      setShowToast(true);
+
+      setTimeout(() => {
+        setFeedbackSuccess(null);
+        setSprintSuccess(null); 
+        setShowToast(false);
+      }, 3000);
+      
+    } catch (err) {
+      handleApiError(err);
+      setError('Failed to submit feedback');
+    }
+  };
+
+  const updateProjectStage = async (projectId: number) => {
+    try {
+      setError(null);
+      setIsSavingProgress(prev => ({ ...prev, [projectId]: true }));
+  
+      const selectedSprint = selectedSprints[projectId];
+      const currentDate = new Date().toISOString().split('T')[0];
+  
+      await api.put(
+        `/progress/by-mentor/${projectId}`,
+        {
+          projectIdeaId: projectId,
+          currentStage: selectedSprint,
+          date: currentDate
+        },
+        {
+          params: {
+            stage: selectedSprint
+          }
+        }
+      );
+  
+      setProjects(projects.map(p =>
+        p.projectIdeaId === projectId ? { ...p, currentStage: selectedSprint } : p
+      ));
+      
+      // Show success toast
+      setSprintSuccess(`Sprint status updated to ${sprints.find(s => s.id === selectedSprint)?.name}`);
+      setShowToast(true);
+      
+      setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
+  
+    } catch (err) {
+      handleApiError(err);
+      setError(`Failed to update project ${projectId} stage`);
+    } finally {
+      setIsSavingProgress(prev => ({ ...prev, [projectId]: false }));
+    }
+  };
+
+  const toggleProjectExpand = (projectId: number) => {
+    setExpandedProjects(prev => ({
+      ...prev,
+      [projectId]: !prev[projectId]
+    }));
+  };
+
+  const handleSprintChange = (projectId: number, sprintId: number) => {
+    setSelectedSprints(prev => ({
+      ...prev,
+      [projectId]: sprintId
+    }));
+  };
+
+  const handleFeedbackChange = (projectId: number, text: string) => {
+    setFeedback(prev => ({
+      ...prev,
+      [projectId]: text
+    }));
+  };
+
+  const handleDownloadDocument = async (projectIdeaId: number) => {
+    try {
+      const project = projects.find(p => p.projectIdeaId === projectIdeaId);
+
+      if (!project || !project.documentPath) {
+        window.alert('Document not available for this project.');
+        return;
+      }
+      const response = await fetch(`http://localhost:8000/api/projectidea/document/${projectIdeaId}`);
+      
+
+      if (!response.ok) {
+        window.alert('Document not available for this project.');
+        return;
+      }
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+?)"/);
+      const filename = filenameMatch ? filenameMatch[1] : 'project-document.pdf';
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      setError('Failed to download document');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center mt-5 fade-in">
+        <Spinner animation="border" className="spinner-grow-lg" />
+        <p className="mt-3">Loading projects...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="mt-3 slide-in">
+        <Alert.Heading>Error</Alert.Heading>
+        <p>{error}</p>
+        <div className="d-flex gap-2 mt-2">
+          <Button variant="primary" size="sm" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={() => setError(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="mentor-projects position-relative">
+      {/* Success Toast Notification */}
+      <ToastContainer position="top-center" className="p-3 position-fixed" style={{ zIndex: 1050 }}>
+        <Toast 
+          onClose={() => setShowToast(false)} 
+          show={showToast} 
+          delay={3000} 
+          autohide
+          className="fade-in-toast"
+        >
+          <Toast.Header className="bg-success text-white">
+            <strong className="me-auto">Success</strong>
+          </Toast.Header>
+          <Toast.Body>{feedbackSuccess || sprintSuccess}</Toast.Body>
+        </Toast>
+      </ToastContainer>
+
+      {projects.length === 0 ? (
+        <div className="empty-state text-center py-5 fade-in">
+          <h3 className="mb-3">No projects assigned</h3>
+          <p className="text-muted">When projects are assigned, they'll appear here</p>
+        </div>
+      ) : (
+        <div className="project-grid">
+          <div className="d-flex justify-content-between align-items-center mb-4 slide-down">
+            <h3 className="h4 mb-0">My Projects</h3>
+            <Badge bg="secondary" pill>{projects.length} projects</Badge>
+          </div>
+          
+          {projects.map(project => {
+            const isExpanded = expandedProjects[project.projectIdeaId];
+            const selectedSprint = selectedSprints[project.projectIdeaId] || 0;
+            const projectFeedback = feedback[project.projectIdeaId] || '';
+
+            return (
+              <Card 
+                key={project.projectIdeaId} 
+                className="project-card mb-3 shadow-sm animate-on-hover"
+              >
+                <Card.Header
+                  onClick={() => toggleProjectExpand(project.projectIdeaId)}
+                  style={{ cursor: 'pointer' }}
+                  className="d-flex justify-content-between align-items-center card-header-animate"
+                >
+                  <div><strong className="project-title-animate">{project.projectTitle}</strong></div>
+                  <div className="transition-all">
+                    {isExpanded ? <ChevronUp className="rotate-icon" /> : <ChevronDown className="rotate-icon" />}
+                  </div>
+                </Card.Header>
+
+                <Collapse in={isExpanded}>
+                  <div className="collapse-content">
+                    <Card.Body>
+                      <p className="mb-3 fade-in-text">{project.description}</p>
+
+                      <div className="mb-4 slide-in-right">
+                        <h5 className="mb-3">
+                          <FileBarGraph className="text-primary me-2 bounce" />
+                          Project Sprint Status
+                        </h5>
+
+                        <Form>
+                          <div className="d-flex gap-3 mb-3">
+                            {sprints.map(sprint => (
+                              <Form.Check
+                                key={sprint.id}
+                                type="radio"
+                                id={`sprint-${project.projectIdeaId}-${sprint.id}`}
+                                label={sprint.name}
+                                name={`sprint-${project.projectIdeaId}`}
+                                checked={selectedSprint === sprint.id}
+                                onChange={() => handleSprintChange(project.projectIdeaId, sprint.id)}
+                                className="form-check-animate"
+                              />
+                            ))}
+                          </div>
+                        </Form>
+
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => updateProjectStage(project.projectIdeaId)}
+                          disabled={isSavingProgress[project.projectIdeaId]}
+                          className="btn-animate"
+                        >
+                          {isSavingProgress[project.projectIdeaId] ? (
+                            <>
+                              <Spinner as="span" animation="border" size="sm" className="me-2" />
+                              <span>Updating...</span>
+                            </>
+                          ) : 'Update Sprint Status'}
+                        </Button>
+                      </div>
+
+                      {project.documentPath && (
+                        <div className="col-md-6 slide-in-left">
+                          <div className="p-3 bg-light rounded document-container">
+                            <div className="d-flex align-items-center text-muted mb-2">
+                              <FileEarmarkText className="me-2 text-info bounce" />
+                              <small>Document</small>
+                            </div>
+                            <button
+                              className="btn btn-link p-0 text-decoration-none download-btn"
+                              onClick={() => handleDownloadDocument(project.projectIdeaId)}
+                            >
+                              <ArrowDownCircle className="me-1 bounce" />
+                              Download PDF
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {activeFeedbackId === project.projectIdeaId ? (
+                        <div className="mt-3 expand-feedback">
+                          <Form.Group className="mb-3">
+                            <Form.Label>Feedback</Form.Label>
+                            <Form.Control
+                              as="textarea"
+                              rows={3}
+                              value={projectFeedback}
+                              onChange={(e) => handleFeedbackChange(project.projectIdeaId, e.target.value)}
+                              placeholder="Enter your feedback..."
+                              isInvalid={!!feedbackValidationErrors[project.projectIdeaId]}
+                              className="feedback-textarea"
+                            />
+                            <Form.Control.Feedback type="invalid">
+                              {feedbackValidationErrors[project.projectIdeaId]}
+                            </Form.Control.Feedback>
+                          </Form.Group>
+
+                          <div className="d-flex gap-2 mt-3">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleSubmitFeedback(project.projectIdeaId)}
+                              disabled={!projectFeedback.trim()}
+                              className="btn-animate"
+                            >
+                              Submit
+                            </Button>
+                            <Button
+                              variant="outline-secondary"
+                              size="sm"
+                              onClick={() => setActiveFeedbackId(null)}
+                              className="btn-animate"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          variant={project.remarks ? 'outline-success' : 'outline-primary'}
+                          size="sm"
+                          className="mt-2 btn-animate"
+                          onClick={() => {
+                            setActiveFeedbackId(project.projectIdeaId);
+                            setFeedback(prev => ({
+                              ...prev,
+                              [project.projectIdeaId]: prev[project.projectIdeaId] || ''
+                            }));
+                          }}
+                        >
+                          <ChatLeftText className="me-1 bounce" />
+                          {project.remarks ? 'Update Feedback' : 'Add Feedback'}
+                        </Button>
+                      )}
+                    </Card.Body>
+                  </div>
+                </Collapse>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MentorProjects;
+
